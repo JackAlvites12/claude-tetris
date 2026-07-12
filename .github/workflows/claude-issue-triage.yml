@@ -21,7 +21,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          claude_args: '--allowed-tools Bash(gh issue edit:*),Bash(gh issue comment:*)'
+          claude_args: '--allowed-tools "Bash(gh issue edit:*),Bash(gh issue comment:*)"'
           prompt: |
             Analiza el issue #${{ github.event.issue.number }} de este repositorio (un juego de Tetris
             en JavaScript/HTML5 Canvas vanilla: index.html, style.css, game.js).
