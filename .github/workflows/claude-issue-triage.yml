@@ -1,0 +1,44 @@
+name: Claude Issue Triage
+
+on:
+  issues:
+    types: [opened, edited]
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Issue Triage
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: '--allowed-tools Bash(gh issue edit:*),Bash(gh issue comment:*)'
+          prompt: |
+            Analiza el issue #${{ github.event.issue.number }} de este repositorio (un juego de Tetris
+            en JavaScript/HTML5 Canvas vanilla: index.html, style.css, game.js).
+
+            1. Etiquetado: basándote en el título y el cuerpo del issue, decide qué label(es) existentes
+               son apropiadas de este conjunto: bug, enhancement, documentation, question, duplicate,
+               invalid, wontfix, help wanted, good first issue. No crees labels nuevas. Aplica las que
+               correspondan y quita las que ya no apliquen con:
+                 gh issue edit ${{ github.event.issue.number }} --add-label "<label>"
+                 gh issue edit ${{ github.event.issue.number }} --remove-label "<label>"
+
+            2. Diagnóstico: investiga el código relevante (game.js, index.html, style.css) para entender
+               el problema descrito. Publica un comentario en el issue con:
+                 - Causa probable del problema (o qué se necesita para el feature solicitado).
+                 - Componentes/archivos/funciones afectados.
+                 - Un enfoque general sugerido para implementar la solución (sin escribir el código todavía).
+               Publícalo con:
+                 gh issue comment ${{ github.event.issue.number }} --body "<diagnóstico>"
+
+            No modifiques archivos del repo, no crees ramas ni pull requests — solo labels y el comentario.
