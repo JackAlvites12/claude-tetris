@@ -41,4 +41,8 @@ jobs:
                Publícalo con:
                  gh issue comment ${{ github.event.issue.number }} --body "<diagnóstico>"
 
+               El comentario debe estar escrito en formato Markdown compatible con GitHub (encabezados,
+               listas, bloques de código con \`\`\`, negritas, etc.) para que se renderice correctamente
+               en la interfaz de GitHub.
+
             No modifiques archivos del repo, no crees ramas ni pull requests — solo labels y el comentario.
