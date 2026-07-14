@@ -28,6 +28,15 @@ const PIECES = [
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
 
+const SPECIAL_LINE_INTERVAL = 5;
+const SPECIAL_TYPES = ['bomb', 'lightning', 'dye', 'gravity', 'freeze'];
+const SPECIAL_ICONS = { bomb: '💣', lightning: '⚡', dye: '🎨', gravity: '🌀', freeze: '❄️' };
+const SPECIAL_LABELS = { bomb: '¡BOMBA!', lightning: '¡RAYO!', dye: '¡TINTE!', gravity: '¡GRAVEDAD!', freeze: '¡CONGELAR!' };
+const SPECIAL_CELL_SCORE = 10;
+const SPECIAL_FLAT_SCORE = 50;
+const FREEZE_DURATION_MS = 5000;
+const BANNER_DURATION_MS = 1200;
+
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
 const nextCanvas = document.getElementById('next-canvas');
@@ -40,8 +49,11 @@ const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
 const themeToggleBtn = document.getElementById('theme-toggle');
+const specialBannerEl = document.getElementById('special-banner');
+const freezeIndicatorEl = document.getElementById('freeze-indicator');
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
+let specialLineCounter, pendingSpecial, freezeUntil, bannerText, bannerUntil;
 
 const THEME_STORAGE_KEY = 'tetris-theme';
 
@@ -67,7 +79,7 @@ function createBoard() {
 function randomPiece() {
   const type = Math.floor(Math.random() * 7) + 1;
   const shape = PIECES[type].map(row => [...row]);
-  return { type, shape, x: Math.floor(COLS / 2) - Math.floor(shape[0].length / 2), y: 0 };
+  return { type, shape, x: Math.floor(COLS / 2) - Math.floor(shape[0].length / 2), y: 0, special: null };
 }
 
 function collide(shape, ox, oy) {
@@ -126,8 +138,102 @@ function clearLines() {
     score += (LINE_SCORES[cleared] || 0) * level;
     level = Math.floor(lines / 10) + 1;
     dropInterval = Math.max(100, 1000 - (level - 1) * 90);
+    specialLineCounter += cleared;
+    if (specialLineCounter >= SPECIAL_LINE_INTERVAL) {
+      specialLineCounter -= SPECIAL_LINE_INTERVAL;
+      pendingSpecial = true;
+    }
     updateHUD();
   }
+}
+
+function pieceCells(piece) {
+  const cells = [];
+  for (let r = 0; r < piece.shape.length; r++)
+    for (let c = 0; c < piece.shape[r].length; c++)
+      if (piece.shape[r][c]) cells.push({ x: piece.x + c, y: piece.y + r });
+  return cells;
+}
+
+function pieceCenterCell(piece) {
+  const cells = pieceCells(piece);
+  const cx = Math.round(cells.reduce((s, p) => s + p.x, 0) / cells.length);
+  const cy = Math.round(cells.reduce((s, p) => s + p.y, 0) / cells.length);
+  return { cx, cy };
+}
+
+function showBanner(text) {
+  bannerText = text;
+  bannerUntil = performance.now() + BANNER_DURATION_MS;
+}
+
+function effectBomb(piece) {
+  const { cx, cy } = pieceCenterCell(piece);
+  let removed = 0;
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      const x = cx + dx, y = cy + dy;
+      if (x < 0 || x >= COLS || y < 0 || y >= ROWS) continue;
+      if (board[y][x]) { board[y][x] = 0; removed++; }
+    }
+  }
+  score += removed * SPECIAL_CELL_SCORE;
+}
+
+function effectLightning(piece) {
+  const { cx, cy } = pieceCenterCell(piece);
+  let removed = 0;
+  if (cy >= 0 && cy < ROWS) {
+    for (let x = 0; x < COLS; x++) if (board[cy][x]) { board[cy][x] = 0; removed++; }
+  }
+  if (cx >= 0 && cx < COLS) {
+    for (let y = 0; y < ROWS; y++) if (board[y][cx]) { board[y][cx] = 0; removed++; }
+  }
+  score += removed * SPECIAL_CELL_SCORE;
+}
+
+function effectDye() {
+  const freq = {};
+  for (let r = 0; r < ROWS; r++)
+    for (let c = 0; c < COLS; c++)
+      if (board[r][c]) freq[board[r][c]] = (freq[board[r][c]] || 0) + 1;
+  let targetColor = null, max = 0;
+  for (const color of Object.keys(freq)) {
+    if (freq[color] > max) { max = freq[color]; targetColor = Number(color); }
+  }
+  if (targetColor == null) return;
+  let removed = 0;
+  for (let r = 0; r < ROWS; r++)
+    for (let c = 0; c < COLS; c++)
+      if (board[r][c] === targetColor) { board[r][c] = 0; removed++; }
+  score += removed * SPECIAL_CELL_SCORE;
+}
+
+function effectGravityCompact() {
+  for (let c = 0; c < COLS; c++) {
+    const colVals = [];
+    for (let r = 0; r < ROWS; r++) if (board[r][c]) colVals.push(board[r][c]);
+    const newCol = new Array(ROWS - colVals.length).fill(0).concat(colVals);
+    for (let r = 0; r < ROWS; r++) board[r][c] = newCol[r];
+  }
+  score += SPECIAL_FLAT_SCORE;
+}
+
+function effectFreeze() {
+  freezeUntil = performance.now() + FREEZE_DURATION_MS;
+  score += SPECIAL_FLAT_SCORE;
+}
+
+function applySpecialEffect(piece) {
+  switch (piece.special) {
+    case 'bomb': effectBomb(piece); break;
+    case 'lightning': effectLightning(piece); break;
+    case 'dye': effectDye(); break;
+    case 'gravity': effectGravityCompact(); break;
+    case 'freeze': effectFreeze(); break;
+  }
+  showBanner(`${SPECIAL_ICONS[piece.special]} ${SPECIAL_LABELS[piece.special]}`);
+  updateHUD();
 }
 
 function ghostY() {
@@ -155,12 +261,17 @@ function softDrop() {
 
 function lockPiece() {
   merge();
+  if (current.special) applySpecialEffect(current);
   clearLines();
   spawn();
 }
 
 function spawn() {
   current = next;
+  if (pendingSpecial) {
+    current.special = SPECIAL_TYPES[Math.floor(Math.random() * SPECIAL_TYPES.length)];
+    pendingSpecial = false;
+  }
   next = randomPiece();
   if (collide(current.shape, current.x, current.y)) {
     endGame();
@@ -224,6 +335,51 @@ function draw() {
   for (let r = 0; r < current.shape.length; r++)
     for (let c = 0; c < current.shape[r].length; c++)
       drawBlock(ctx, current.x + c, current.y + r, current.shape[r][c], BLOCK);
+
+  if (current.special) drawSpecialBadge(ctx, current, BLOCK);
+}
+
+function drawSpecialBadge(context, piece, size) {
+  const cells = pieceCells(piece);
+  const glowAlpha = 0.5 + 0.5 * Math.sin(performance.now() / 150);
+  context.save();
+  context.strokeStyle = `rgba(255, 213, 79, ${glowAlpha})`;
+  context.lineWidth = 3;
+  for (const { x, y } of cells) {
+    context.strokeRect(x * size + 2, y * size + 2, size - 4, size - 4);
+  }
+  const minX = Math.min(...cells.map(p => p.x));
+  const maxX = Math.max(...cells.map(p => p.x));
+  const minY = Math.min(...cells.map(p => p.y));
+  const maxY = Math.max(...cells.map(p => p.y));
+  const iconX = ((minX + maxX + 1) / 2) * size;
+  const iconY = ((minY + maxY + 1) / 2) * size;
+  context.font = `${Math.floor(size * 0.8)}px sans-serif`;
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.globalAlpha = 1;
+  context.fillStyle = '#fff';
+  context.shadowColor = 'rgba(0,0,0,0.8)';
+  context.shadowBlur = 4;
+  context.fillText(SPECIAL_ICONS[piece.special], iconX, iconY);
+  context.restore();
+}
+
+function updateSpecialUI(ts) {
+  if (bannerUntil && ts < bannerUntil) {
+    specialBannerEl.textContent = bannerText;
+    specialBannerEl.classList.remove('hidden');
+  } else {
+    bannerUntil = 0;
+    specialBannerEl.classList.add('hidden');
+  }
+
+  if (freezeUntil && ts < freezeUntil) {
+    freezeIndicatorEl.textContent = `❄️ ${Math.ceil((freezeUntil - ts) / 1000)}s`;
+    freezeIndicatorEl.classList.remove('hidden');
+  } else {
+    freezeIndicatorEl.classList.add('hidden');
+  }
 }
 
 function drawNext() {
@@ -263,16 +419,23 @@ function loop(ts) {
   if (gameOver || paused) return;
   const dt = ts - lastTime;
   lastTime = ts;
-  dropAccum += dt;
-  if (dropAccum >= dropInterval) {
+  if (freezeUntil && ts >= freezeUntil) {
+    freezeUntil = 0;
     dropAccum = 0;
-    if (!collide(current.shape, current.x, current.y + 1)) {
-      current.y++;
-    } else {
-      lockPiece();
+  }
+  if (!freezeUntil) {
+    dropAccum += dt;
+    if (dropAccum >= dropInterval) {
+      dropAccum = 0;
+      if (!collide(current.shape, current.x, current.y + 1)) {
+        current.y++;
+      } else {
+        lockPiece();
+      }
     }
   }
   draw();
+  updateSpecialUI(ts);
   animId = requestAnimationFrame(loop);
 }
 
@@ -286,10 +449,17 @@ function init() {
   dropInterval = 1000;
   dropAccum = 0;
   lastTime = performance.now();
+  specialLineCounter = 0;
+  pendingSpecial = false;
+  freezeUntil = 0;
+  bannerText = '';
+  bannerUntil = 0;
   next = randomPiece();
   spawn();
   updateHUD();
   overlay.classList.add('hidden');
+  specialBannerEl.classList.add('hidden');
+  freezeIndicatorEl.classList.add('hidden');
   cancelAnimationFrame(animId);
   animId = requestAnimationFrame(loop);
 }
