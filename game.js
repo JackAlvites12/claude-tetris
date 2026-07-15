@@ -4,7 +4,7 @@ const COLS = 10;
 const ROWS = 20;
 const BLOCK = 30;
 
-const COLORS = [
+const RETRO_COLORS = [
   null,
   '#4dd0e1', // I - cyan
   '#ffd54f', // O - yellow
@@ -14,6 +14,63 @@ const COLORS = [
   '#3f51b5', // J - indigo
   '#fb8c00', // L - orange
 ];
+
+const SKINS = {
+  retro: {
+    label: 'Retro',
+    colors: RETRO_COLORS,
+    gridColor: '#22222e',
+    badgeGlowRGB: '255, 213, 79',
+    badgeIconColor: '#fff',
+    badgeShadowColor: 'rgba(0,0,0,0.8)',
+    render: renderRetroBlock,
+  },
+  neon: {
+    label: 'Neon',
+    colors: [
+      null,
+      '#00e5ff', // I - electric cyan
+      '#fff176', // O - electric yellow
+      '#e040fb', // T - electric magenta
+      '#69f0ae', // S - electric green
+      '#ff5252', // Z - electric red
+      '#536dfe', // J - electric indigo
+      '#ffab40', // L - electric orange
+    ],
+    gridColor: '#123',
+    badgeGlowRGB: '0, 229, 255',
+    badgeIconColor: '#fff',
+    badgeShadowColor: 'rgba(0,229,255,0.9)',
+    render: renderNeonBlock,
+  },
+  pastel: {
+    label: 'Pastel',
+    colors: [
+      null,
+      '#a8dadc', // I - soft cyan
+      '#ffe8a3', // O - soft yellow
+      '#d8b4e2', // T - soft purple
+      '#b8e0c4', // S - soft green
+      '#f4a9a8', // Z - soft red
+      '#a3b1e8', // J - soft indigo
+      '#f7c99e', // L - soft orange
+    ],
+    gridColor: '#4a4a5a',
+    badgeGlowRGB: '247, 201, 158',
+    badgeIconColor: '#4a4a5a',
+    badgeShadowColor: 'rgba(255,255,255,0.7)',
+    render: renderPastelBlock,
+  },
+  pixel: {
+    label: 'Pixel art',
+    colors: RETRO_COLORS,
+    gridColor: '#22222e',
+    badgeGlowRGB: '255, 213, 79',
+    badgeIconColor: '#fff',
+    badgeShadowColor: 'rgba(0,0,0,0.8)',
+    render: renderPixelBlock,
+  },
+};
 
 const PIECES = [
   null,
@@ -49,6 +106,7 @@ const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
 const themeToggleBtn = document.getElementById('theme-toggle');
+const skinSelect = document.getElementById('skin-select');
 const specialBannerEl = document.getElementById('special-banner');
 const freezeIndicatorEl = document.getElementById('freeze-indicator');
 const pauseOverlay = document.getElementById('pause-overlay');
@@ -223,6 +281,20 @@ playerNameInput.addEventListener('keydown', e => {
   }
 });
 resetScoresBtn.addEventListener('click', resetHighScores);
+
+const SKIN_STORAGE_KEY = 'tetris-skin';
+let currentSkin = 'retro';
+
+function applySkin(skin) {
+  if (!SKINS[skin]) skin = 'retro';
+  currentSkin = skin;
+  document.documentElement.setAttribute('data-skin', skin);
+  if (skinSelect) skinSelect.value = skin;
+  localStorage.setItem(SKIN_STORAGE_KEY, skin);
+}
+
+if (skinSelect) skinSelect.addEventListener('change', () => applySkin(skinSelect.value));
+applySkin(localStorage.getItem(SKIN_STORAGE_KEY) || 'retro');
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
@@ -449,20 +521,96 @@ function updateHUD() {
   levelEl.textContent = level;
 }
 
+function roundRectPath(context, x, y, w, h, r) {
+  const radius = Math.min(r, w / 2, h / 2);
+  context.moveTo(x + radius, y);
+  context.arcTo(x + w, y, x + w, y + h, radius);
+  context.arcTo(x + w, y + h, x, y + h, radius);
+  context.arcTo(x, y + h, x, y, radius);
+  context.arcTo(x, y, x + w, y, radius);
+  context.closePath();
+}
+
+function fillRoundedRect(context, x, y, w, h, r) {
+  // Clamp before dispatching so the native roundRect() path and the manual
+  // arcTo() fallback always agree on the effective radius.
+  const radius = Math.min(r, w / 2, h / 2);
+  context.beginPath();
+  if (typeof context.roundRect === 'function') {
+    context.roundRect(x, y, w, h, radius);
+  } else {
+    roundRectPath(context, x, y, w, h, radius);
+  }
+  context.fill();
+}
+
+function drawPixelTexture(context, px, py, w) {
+  const cell = Math.max(2, Math.floor(w / 4));
+  const cols = Math.ceil(w / cell);
+  context.save();
+  context.beginPath();
+  context.rect(px, py, w, w);
+  context.clip();
+  for (let gy = 0; gy < cols; gy++) {
+    for (let gx = 0; gx < cols; gx++) {
+      const light = (gx + gy) % 2 === 0;
+      context.fillStyle = light ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)';
+      context.fillRect(px + gx * cell, py + gy * cell, cell, cell);
+    }
+  }
+  context.restore();
+}
+
+// Each skin owns its own render(context, px, py, w, size, color) implementation,
+// keeping drawBlock() a thin dispatcher (same data-driven shape as drawGrid()
+// and drawSpecialBadge()) — adding a 5th skin only means adding a SKINS entry.
+
+function renderRetroBlock(context, px, py, w, size, color) {
+  context.fillStyle = color;
+  context.fillRect(px, py, w, w);
+  context.fillStyle = 'rgba(255,255,255,0.12)';
+  context.fillRect(px, py, w, 4);
+}
+
+function renderNeonBlock(context, px, py, w, size, color) {
+  context.save();
+  context.shadowBlur = 12;
+  context.shadowColor = color;
+  context.fillStyle = color;
+  context.fillRect(px, py, w, w);
+  context.restore();
+  context.fillStyle = 'rgba(255,255,255,0.25)';
+  context.fillRect(px, py, w, 4);
+}
+
+function renderPastelBlock(context, px, py, w, size, color) {
+  const radius = Math.max(2, size * 0.22);
+  context.fillStyle = color;
+  fillRoundedRect(context, px, py, w, w, radius);
+  context.fillStyle = 'rgba(255,255,255,0.25)';
+  fillRoundedRect(context, px, py, w, Math.max(4, w * 0.3), radius);
+}
+
+function renderPixelBlock(context, px, py, w, size, color) {
+  context.fillStyle = color;
+  context.fillRect(px, py, w, w);
+  drawPixelTexture(context, px, py, w);
+}
+
 function drawBlock(context, x, y, colorIndex, size, alpha) {
   if (!colorIndex) return;
-  const color = COLORS[colorIndex];
+  const skin = SKINS[currentSkin];
+  const color = skin.colors[colorIndex];
+  const px = x * size + 1;
+  const py = y * size + 1;
+  const w = size - 2;
   context.globalAlpha = alpha ?? 1;
-  context.fillStyle = color;
-  context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
-  // highlight
-  context.fillStyle = 'rgba(255,255,255,0.12)';
-  context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
+  skin.render(context, px, py, w, size, color);
   context.globalAlpha = 1;
 }
 
 function drawGrid() {
-  ctx.strokeStyle = '#22222e';
+  ctx.strokeStyle = SKINS[currentSkin].gridColor;
   ctx.lineWidth = 0.5;
   for (let c = 1; c < COLS; c++) {
     ctx.beginPath();
@@ -503,10 +651,11 @@ function draw() {
 }
 
 function drawSpecialBadge(context, piece, size) {
+  const skin = SKINS[currentSkin];
   const cells = pieceCells(piece);
   const glowAlpha = 0.5 + 0.5 * Math.sin(performance.now() / 150);
   context.save();
-  context.strokeStyle = `rgba(255, 213, 79, ${glowAlpha})`;
+  context.strokeStyle = `rgba(${skin.badgeGlowRGB}, ${glowAlpha})`;
   context.lineWidth = 3;
   for (const { x, y } of cells) {
     context.strokeRect(x * size + 2, y * size + 2, size - 4, size - 4);
@@ -521,8 +670,8 @@ function drawSpecialBadge(context, piece, size) {
   context.textAlign = 'center';
   context.textBaseline = 'middle';
   context.globalAlpha = 1;
-  context.fillStyle = '#fff';
-  context.shadowColor = 'rgba(0,0,0,0.8)';
+  context.fillStyle = skin.badgeIconColor;
+  context.shadowColor = skin.badgeShadowColor;
   context.shadowBlur = 4;
   context.fillText(SPECIAL_ICONS[piece.special], iconX, iconY);
   context.restore();
@@ -655,6 +804,8 @@ function init() {
 
 document.addEventListener('keydown', e => {
   if (e.code === 'KeyP' || e.code === 'Escape') { togglePause(); return; }
+  const tag = e.target && e.target.tagName;
+  if (tag === 'SELECT' || tag === 'INPUT' || tag === 'TEXTAREA') return;
   if (paused || gameOver) return;
   switch (e.code) {
     case 'ArrowLeft':
