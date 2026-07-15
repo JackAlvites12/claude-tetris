@@ -24,6 +24,15 @@
   --btn-hover-bg: #9bbdff;
   --toggle-bg: #22223a;
   --toggle-border: #3a3a5a;
+  --highscore-bg: rgba(255, 255, 255, 0.03);
+  --highscore-border: rgba(255, 255, 255, 0.06);
+  --highscore-current-bg: rgba(122, 162, 247, 0.18);
+  --highscore-current-border: #7aa2f7;
+  --input-bg: #1a1a25;
+  --input-border: #3a3a5a;
+  --input-color: #e0e0e0;
+  --reset-btn-color: #e57373;
+  --reset-btn-border: #e57373;
 }
 
 [data-theme="light"] {
@@ -44,6 +53,15 @@
   --btn-hover-bg: #5474ef;
   --toggle-bg: #e4e4ee;
   --toggle-border: #c4c4d6;
+  --highscore-bg: rgba(0, 0, 0, 0.03);
+  --highscore-border: rgba(0, 0, 0, 0.08);
+  --highscore-current-bg: rgba(59, 91, 219, 0.12);
+  --highscore-current-border: #3b5bdb;
+  --input-bg: #ffffff;
+  --input-border: #c4c4d6;
+  --input-color: #23232f;
+  --reset-btn-color: #d64545;
+  --reset-btn-border: #d64545;
 }
 
 body {
@@ -107,7 +125,7 @@ body {
 
 /* ---- Panel lateral ---- */
 .panel {
-  width: 160px;
+  width: 190px;
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -157,6 +175,165 @@ body {
   font-size: 12px;
   font-weight: 600;
   color: #4dd0e1;
+}
+
+/* ---- Récords ---- */
+.highscores-section {
+  gap: 10px;
+}
+
+.highscore-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.highscore-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  background: var(--highscore-bg);
+  border: 1px solid var(--highscore-border);
+  font-size: 12px;
+}
+
+.highscore-item.is-current {
+  background: var(--highscore-current-bg);
+  border-color: var(--highscore-current-border);
+  box-shadow: 0 0 0 1px var(--highscore-current-border) inset;
+}
+
+.hs-rank {
+  color: var(--label-color);
+  font-weight: 700;
+  min-width: 14px;
+}
+
+.hs-name {
+  flex: 1;
+  color: var(--text-color);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hs-score {
+  font-family: 'Courier New', Courier, monospace;
+  color: var(--value-color);
+  font-weight: 700;
+}
+
+.highscore-empty {
+  font-size: 12px;
+  color: var(--control-text-color);
+  font-style: italic;
+}
+
+.stats-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--control-text-color);
+}
+
+.stats-row strong {
+  color: var(--value-color);
+  font-family: 'Courier New', Courier, monospace;
+}
+
+.reset-scores-btn {
+  background: transparent;
+  color: var(--reset-btn-color);
+  border: 1px solid var(--reset-btn-border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  align-self: flex-start;
+}
+
+.reset-scores-btn:hover {
+  background: var(--reset-btn-color);
+  color: var(--btn-color);
+}
+
+/* ---- Récords en el overlay ---- */
+.overlay-highscores {
+  width: 100%;
+  max-width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+}
+
+.overlay-highscores.hidden {
+  display: none;
+}
+
+.highscore-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: 220px;
+}
+
+.highscore-entry.hidden {
+  display: none;
+}
+
+.highscore-entry label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--overlay-title-color);
+  text-align: center;
+}
+
+.highscore-entry-row {
+  display: flex;
+  gap: 8px;
+}
+
+#player-name-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  color: var(--input-color);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+#player-name-input:focus {
+  outline: none;
+  border-color: var(--btn-bg);
+}
+
+#save-score-btn {
+  background: var(--btn-bg);
+  color: var(--btn-color);
+  border: none;
+  border-radius: 6px;
+  padding: 0 16px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+  transition: background 0.15s;
+}
+
+#save-score-btn:hover {
+  background: var(--btn-hover-bg);
 }
 
 /* ---- Controles ---- */
